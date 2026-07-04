@@ -1,157 +1,182 @@
-from backend.file_handler import save_uploaded_file
-from backend.document_processor import DocumentProcessor
+"""
+LexiScan AI
+Main Application
+"""
+
 import streamlit as st
 
-# -------------------------------
-# Page Configuration
-# -------------------------------
+from backend.file_handler import save_uploaded_file
+from backend.workflow import initialize_workflow
+
+from frontend.components.hero import render_hero
+from frontend.components.pipeline import render_pipeline
+from frontend.components.upload_card import render_upload_card
+from frontend.components.health_card import render_health_card
+from frontend.components.chat_panel import render_chat_panel
+
+
+
+# =====================================================
+# PAGE CONFIG
+# =====================================================
+
 st.set_page_config(
-    page_title="Legal Document Analyzer",
+    page_title="LexiScan AI",
     page_icon="⚖️",
     layout="wide"
 )
 
-# -------------------------------
-# Sidebar
-# -------------------------------
-with st.sidebar:
-    st.title("⚖️ Legal Document Analyzer")
 
-    st.markdown("---")
+# =====================================================
+# SESSION STATE
+# =====================================================
 
-    st.subheader("📂 Upload Document")
+defaults = {
+    "agent": None,
+    "metadata": None,
+    "processed": False,
+    "chunk_count": 0,
+    "messages": [
+        {
+            "role": "assistant",
+            "content": "👋 Welcome to LexiScan AI! Upload a legal document to begin."
+        }
+    ]
+}
 
-    uploaded_file = st.file_uploader(
-        "Choose a Legal PDF",
-        type=["pdf"]
+for key, value in defaults.items():
+
+    if key not in st.session_state:
+
+        st.session_state[key] = value
+
+
+# =====================================================
+# GLOBAL CSS
+# =====================================================
+
+st.markdown("""
+<style>
+
+.stApp{
+    background:#0B1120;
+}
+
+.block-container{
+    padding-top:1.4rem;
+    max-width:1500px;
+}
+
+section[data-testid="stSidebar"]{
+    display:none;
+}
+
+footer{
+    visibility:hidden;
+}
+
+header{
+    visibility:hidden;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
+# =====================================================
+# HERO
+# =====================================================
+
+render_hero()
+
+
+# =====================================================
+# PIPELINE
+# =====================================================
+
+render_pipeline()
+
+
+# =====================================================
+# UPLOAD SECTION
+# =====================================================
+
+uploaded = render_upload_card()
+
+
+# =====================================================
+# DOCUMENT PROCESSING
+# =====================================================
+
+if uploaded:
+
+    with st.spinner("Preparing your legal workspace..."):
+
+        file_path = save_uploaded_file(uploaded)
+
+        workflow_state = initialize_workflow(file_path)
+
+        if workflow_state["error"]:
+
+            st.error(workflow_state["error"])
+
+        else:
+
+            st.session_state.agent = workflow_state["legal_agent"]
+
+            st.session_state.metadata = workflow_state["metadata"]
+
+            st.session_state.chunk_count = len(
+                workflow_state["chunks"]
+            )
+
+            st.session_state.processed = True
+
+            st.success(
+                "✅ Document processed successfully."
+            )
+
+
+# =====================================================
+# MAIN WORKSPACE
+# =====================================================
+
+health_col, workspace_col = st.columns(
+    [1,2],
+    gap="large"
+)
+
+# =====================================================
+# DOCUMENT HEALTH CARD
+# =====================================================
+
+with health_col:
+
+    render_health_card(
+        st.session_state.metadata,
+        st.session_state.chunk_count
     )
 
-    st.markdown("---")
 
-    st.subheader("🛠 Analysis Options")
+# =====================================================
+# AI WORKSPACE
+# =====================================================
 
-    analysis_type = st.radio(
-        "Select Analysis",
-        [
-            "Document Summary",
-            "Clause Extraction",
-            "Risk Detection",
-            "Ask Questions"
-        ]
+with workspace_col:
+
+    render_chat_panel(
+        st.session_state.agent
     )
 
-    st.markdown("---")
 
-    st.subheader("ℹ️ Document Status")
 
-    if uploaded_file:
-        st.success("Document Uploaded Successfully!")
-        st.write(f"📄 {uploaded_file.name}")
 
-        # Save uploaded file
-        file_path = save_uploaded_file(uploaded_file)
+# =====================================================
+# FOOTER
+# =====================================================
 
-        from backend.document_processor import DocumentProcessor
+st.divider()
 
-        processor = DocumentProcessor()
-
-        result = processor.process_document(file_path)
-
-        extracted_text = result["text"]
-        metadata = result["metadata"]
-
-        st.session_state["document_text"] = extracted_text
-        st.session_state["metadata"] = metadata
-
-        st.divider()
-
-        st.subheader("📄 Extracted Text Preview")
-
-        st.text_area(
-            "Preview",
-            extracted_text[:3000],
-            height=250
-        )
-    if "metadata" in st.session_state:
-
-        st.divider()
-
-        st.subheader("📊 Document Metadata")
-
-        metadata = st.session_state["metadata"]
-
-        st.write(f"**Filename:** {metadata['filename']}")
-        st.write(f"**Words:** {metadata['word_count']}")
-        st.write(f"**Characters:** {metadata['character_count']}")
-        st.write(f"**Method:** {metadata['processing_method']}")
-        st.write(f"**OCR Used:** {'Yes' if metadata['ocr_used'] else 'No'}")
-        st.write(f"**Processing Time:** {metadata['processing_time']} sec")
-    else:
-            st.info("No document uploaded")
-
-        # -------------------------------
-        # Main Page
-        # -------------------------------
-
-    st.title("⚖️ AI Legal Document Analyzer")
-
-    st.write(
-            """
-            Upload a legal document and interact with it using AI.
-
-            ### Features
-            - 📄 Document Summarization
-            - 📑 Clause Extraction
-            - ⚠️ Risk Detection
-            - 💬 Legal Question Answering (RAG)
-            """
-        )
-
-    st.divider()
-
-        # -------------------------------
-        # Chat Section
-        # -------------------------------
-
-    st.subheader("💬 Chat with your Document")
-
-        # Initialize chat history
-    if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-            # Display previous messages
-            for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
-
-                    # Chat input
-                    prompt = st.chat_input("Ask a legal question...")
-
-                    if prompt:
-
-                        # Show user message
-                        st.session_state.messages.append(
-                            {
-                                "role": "user",
-                                "content": prompt
-                            }
-                        )
-
-                        with st.chat_message("user"):
-                            st.markdown(prompt)
-
-                            # Placeholder AI response
-                            response = (
-                                "This is a placeholder response.\n\n"
-                                "The OpenAI-powered Legal Document Analyzer will answer your questions here in the next phase."
-                            )
-
-                            st.session_state.messages.append(
-                                {
-                                    "role": "assistant",
-                                    "content": response
-                                }
-                            )
-
-                            with st.chat_message("assistant"):
-                                st.markdown(response)
+st.caption(
+    "⚖️ LexiScan AI • Powered by LangGraph • OpenAI • FAISS • PyMuPDF • Streamlit"
+)

@@ -17,7 +17,7 @@ class DocumentProcessor:
         start_time = time.time()
 
         # Try extracting embedded text
-        text = extract_text_from_pdf(file_path)
+        text, page_count = extract_text_from_pdf(file_path)
 
         ocr_used = False
 
@@ -41,12 +41,12 @@ class DocumentProcessor:
 
         metadata = {
             "filename": os.path.basename(file_path),
-            "character_count": len(text),
+            "page_count": page_count,
             "word_count": len(text.split()),
             "processing_method": processing_method,
             "ocr_used": ocr_used,
             "processing_time": round(time.time() - start_time, 2),
-        }
+        }   
 
         return {
             "text": text,

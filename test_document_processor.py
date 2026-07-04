@@ -1,4 +1,4 @@
-from backend.document_processor_new import DocumentProcessor
+from backend.document_processor import DocumentProcessor
 
 processor = DocumentProcessor()
 
